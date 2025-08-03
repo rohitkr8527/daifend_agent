@@ -1,43 +1,47 @@
-# Placeholder for tools/RateLimiterTool.py
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from tools.tool_interface import ToolInterface
 
 class RateLimiterTool(ToolInterface):
     """
-    Recommends per-IP throttling based on observed request rate.
-    Uses a fixed decay factor to suggest adaptive rate limits.
+    Recommends throttling IPs with high request rates.
+    Applies a decay factor to dynamically suggest limits.
     """
 
-    def __init__(self, decay_factor=0.2):
-        self.decay_factor = decay_factor  # Throttle to 20% of observed rate
+    def __init__(self, decay_factor: float = 0.2, threshold: int = 10):
+        self.decay_factor = decay_factor
+        self.threshold = threshold  # Minimum count to consider for throttling
+        self.time_window = timedelta(minutes=1)
 
     def run(self, context: dict) -> dict:
         logs = context.get("logs", [])
-        now = datetime.now(datetime.timezone.utc)
-        time_window = timedelta(minutes=1)
+        now = datetime.now(timezone.utc)
         ip_hits = defaultdict(int)
 
-        # === Extract request counts per IP in the last 60 seconds ===
         for entry in logs:
             try:
                 ts = datetime.fromisoformat(entry["timestamp"].replace("Z", "+00:00"))
-                if now - ts <= time_window:
-                    ip = entry["src_ip"]
-                    ip_hits[ip] += 1
+                if now - ts <= self.time_window:
+                    ip_hits[entry["src_ip"]] += 1
             except Exception:
                 continue
 
-        # === Generate adaptive throttling recommendations ===
         recommendations = []
         for ip, count in ip_hits.items():
-            if count >= 10:  # Only throttle high-volume IPs
+            if count >= self.threshold:
                 limit = round(count * self.decay_factor, 2)
                 recommendations.append({
                     "ip": ip,
                     "observed_rate": count,
                     "recommended_limit": limit,
-                    "action": f"Throttle to {limit} req/sec"
+                    "action": f"Throttle {ip} to {limit} req/min"
                 })
 
-        return {"RateLimiterTool": recommendations}
+        return {
+            "RateLimiterTool": recommendations,
+            "meta": {
+                "flagged_count": len(recommendations),
+                "decay_factor": self.decay_factor,
+                "threshold": self.threshold
+            }
+        }
