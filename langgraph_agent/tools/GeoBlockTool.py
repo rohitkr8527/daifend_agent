@@ -1,4 +1,3 @@
-# Placeholder for tools/GeoBlockTool.py
 from tools.tool_interface import ToolInterface
 
 class GeoBlockTool(ToolInterface):
@@ -16,13 +15,20 @@ class GeoBlockTool(ToolInterface):
 
         for entry in logs:
             ip = entry.get("src_ip")
-            country = entry.get("geo_location", "").split(",")[-1].strip()
+            geo = entry.get("geo_location", "")
+            country = geo.split(",")[-1].strip() if geo else ""
 
             if country in self.blacklist:
                 flagged.append({
                     "ip": ip,
-                    "geo_location": entry.get("geo_location"),
+                    "geo_location": geo,
                     "action": f"Block traffic from {country}"
                 })
 
-        return {"GeoBlockTool": flagged}
+        return {
+            "GeoBlockTool": flagged,
+            "meta": {
+                "blacklist_used": list(self.blacklist),
+                "flagged_count": len(flagged)
+            }
+        }
