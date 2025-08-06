@@ -1,55 +1,50 @@
-# Placeholder for nodes/brute_force_node.py
-# nodes/brute_force_node.py
-
-from tools.IPAnalyzerTool import IPAnalyzerTool
-from tools.LoginAttemptMonitorTool import LoginAttemptMonitorTool
-from tools.AuthLockTool import AuthLockTool
+from tools.FailedLoginMonitorTool import FailedLoginMonitorTool
+from tools.IPBlackListTool import IPBlacklistTool
+from tools.AuthLockTool import AccountLockTool
 from tools.RateLimiterTool import RateLimiterTool
-from tools.FirewallBlockerTool import FirewallBlockerTool
-from tools.LogTool import LogTool
 
-def brute_force_toolchain(state: dict) -> dict:
-    data = state.get("data", {})
 
-    print("[*] Brute Force Toolchain Activated")
+def brute_force_node(state: dict) -> dict:
+    """
+    LangGraph node to handle brute-force threats using a predefined toolchain.
+    Input: Layer 3 context from upstream graph
+    Output: Updated context including mitigation results
+    """
+    results = {}
 
-    # === Step 1: Analyze Failed Login Sources ===
-    ip_result = IPAnalyzerTool().run(data)
+    # Set mode for RateLimiterTool
+    state["limit_type"] = "brute_force"
 
-    # === Step 2: Monitor Repeated Login Attempts ===
-    login_monitor_result = LoginAttemptMonitorTool().run(data)
+    # Define tool execution sequence
+    tool_chain = [
+        FailedLoginMonitorTool(),
+        IPBlacklistTool(),
+        AccountLockTool(),
+        RateLimiterTool()
+    ]
 
-    # === Step 3: Lock Accounts After Threshold ===
-    auth_lock_result = AuthLockTool().run(data)
+    for tool in tool_chain:
+        tool_name = tool.__class__.__name__
 
-    # === Step 4: Rate Limit IPs Making Too Many Requests ===
-    limiter_result = RateLimiterTool().run(data)
+        try:
+            output = tool.run(state)
+            state[tool_name] = output  # Update shared state for chaining
+            results[tool_name] = {
+                "status": "success",
+                "output": output
+            }
+        except Exception as e:
+            results[tool_name] = {
+                "status": "failed",
+                "error": str(e)
+            }
 
-    # === Step 5: Block IPs (optional / mocked) ===
-    fw_result = FirewallBlockerTool().run({
-        "block_ips": [entry["ip"] for entry in ip_result.get("flagged_ips", [])]
-    })
-
-    # === Step 6: Log Everything ===
-    log_result = LogTool().run({
-        "attack": "brute_force",
-        "actions": {
-            "ip_analysis": ip_result,
-            "login_monitoring": login_monitor_result,
-            "auth_lock": auth_lock_result,
-            "rate_limiting": limiter_result,
-            "firewall_block": fw_result
-        }
-    })
-
-    # Attach results to state
-    state["result"] = {
-        "ip_analysis": ip_result,
-        "login_monitoring": login_monitor_result,
-        "auth_lock": auth_lock_result,
-        "rate_limiting": limiter_result,
-        "firewall_block": fw_result,
-        "log": log_result
+    # Add toolchain metadata
+    state["brute_force_response"] = {
+        "tools_executed": [tool.__class__.__name__ for tool in tool_chain],
+        "status": "completed",
+        "threat_type": "brute_force",
+        "results": results
     }
 
     return state

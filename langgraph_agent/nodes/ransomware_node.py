@@ -1,49 +1,44 @@
-# Placeholder for nodes/ransomware_node.py
-# nodes/ransomware_node.py
-
-from tools.FileActivityMonitorTool import FileActivityMonitorTool
 from tools.ProcessKillerTool import ProcessKillerTool
-from tools.BackupRestoreTool import BackupRestoreTool
-from tools.EndpointIsolatorTool import EndpointIsolatorTool
-from tools.LogTool import LogTool
+from tools.HostIsolationTool import HostIsolationTool
+from tools.SnapShotRecoveryTool import SnapshotRecoveryTool
+from tools.TemporaryFirewallTool import TemporaryFirewallTool
 
-def ransomware_toolchain(state: dict) -> dict:
-    data = state.get("data", {})
 
-    print("[*] Ransomware Toolchain Activated")
+def ransomware_node(state: dict) -> dict:
+    """
+    LangGraph node to handle ransomware threats using a mitigation toolchain.
+    Accepts context (state), applies sequential mitigation tools, and returns updated state.
+    """
+    results = {}
 
-    # === Step 1: Detect Suspicious File Activity ===
-    file_activity_result = FileActivityMonitorTool().run(data)
+    tool_chain = [
+        ProcessKillerTool(),
+        HostIsolationTool(),
+        SnapshotRecoveryTool(),
+        TemporaryFirewallTool()
+    ]
 
-    # === Step 2: Kill Suspected Encryption Scripts ===
-    kill_result = ProcessKillerTool().run(data)
+    for tool in tool_chain:
+        tool_name = tool.__class__.__name__
 
-    # === Step 3: Restore Affected Directories ===
-    restore_result = BackupRestoreTool().run(data)
+        try:
+            output = tool.run(state)
+            state[tool_name] = output
+            results[tool_name] = {
+                "status": "success",
+                "output": output
+            }
+        except Exception as e:
+            results[tool_name] = {
+                "status": "failed",
+                "error": str(e)
+            }
 
-    # === Step 4: Isolate Infected Endpoint ===
-    isolate_result = EndpointIsolatorTool().run({
-        "device_id": data.get("device_id")
-    })
-
-    # === Step 5: Log Event ===
-    log_result = LogTool().run({
-        "attack": "ransomware",
-        "actions": {
-            "file_activity": file_activity_result,
-            "process_kill": kill_result,
-            "restore": restore_result,
-            "isolation": isolate_result
-        }
-    })
-
-    # Attach results to state
-    state["result"] = {
-        "file_activity": file_activity_result,
-        "process_kill": kill_result,
-        "restore": restore_result,
-        "isolation": isolate_result,
-        "log": log_result
+    state["ransomware_response"] = {
+        "tools_executed": [tool.__class__.__name__ for tool in tool_chain],
+        "status": "completed",
+        "threat_type": "ransomware",
+        "results": results
     }
 
     return state

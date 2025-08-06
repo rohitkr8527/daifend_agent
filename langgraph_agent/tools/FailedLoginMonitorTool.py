@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 class FailedLoginMonitorTool:
     """
     Detects IPs with excessive failed login attempts within a given time window.
-    This is useful for identifying brute-force attack patterns.
+    
     """
 
     def __init__(self, threshold: int = 5, window_minutes: int = 10):

@@ -1,5 +1,3 @@
-# toolchains/sqlin_chain.py
-
 from tools.WebRequestMonitorTool import WebRequestMonitorTool
 from tools.WAFMonitorTool import WAFMonitorTool
 

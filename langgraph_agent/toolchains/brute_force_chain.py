@@ -1,5 +1,3 @@
-# toolchains/brute_force_chain.py
-
 from tools.FailedLoginMonitorTool import FailedLoginMonitorTool
 from tools.IPBlackListTool import IPBlacklistTool
 from tools.AuthLockTool import AccountLockTool

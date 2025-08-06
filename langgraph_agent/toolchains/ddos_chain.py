@@ -1,5 +1,3 @@
-# toolchains/ddos_chain.py
-
 from tools.IPAnalyzerTool import IPAnalyzerTool
 from tools.GeoBlockTool import GeoBlockTool
 from tools.RateLimiterTool import RateLimiterTool

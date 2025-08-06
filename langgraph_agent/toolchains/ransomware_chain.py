@@ -1,4 +1,3 @@
-# toolchains/ransomware_chain.py
 
 from tools.ProcessKillerTool import ProcessKillerTool
 from tools.HostIsolationTool import HostIsolationTool
