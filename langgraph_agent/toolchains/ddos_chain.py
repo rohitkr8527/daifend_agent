@@ -1,55 +1,43 @@
-# ddos_chain.py
+# toolchains/ddos_chain.py
 
 from tools.IPAnalyzerTool import IPAnalyzerTool
-from tools.RateLimiterTool import RateLimiterTool
 from tools.GeoBlockTool import GeoBlockTool
-from tools.MonitorTool import MonitorTool
-from tools.AlertTool import AlertTool
+from tools.RateLimiterTool import RateLimiterTool
 from tools.FirewallBlockerTool import FirewallBlockerTool
-from tools.LogTool import LogTool
+from tools.CDNActivator import CDNActivatorTool
 
 
-def handle_ddos_threat(state):
+def execute(context: dict) -> dict:
     """
-    Executes the DDoS response toolchain using modular tools.
-    Args:
-        state (AgentState): LangGraph state with threat details
-    Returns:
-        AgentState: Updated state with results
+    Executes the full DDoS mitigation chain in order.
+    Updates the context with tool outputs and returns final result.
     """
-    data = state.data
     results = {}
 
-    # Tool 1: Analyze source IPs for abnormal patterns
-    ip_analyzer = IPAnalyzerTool()
-    results["ip_analysis"] = ip_analyzer.run(data)
+    tool_chain = [
+        IPAnalyzerTool(),
+        GeoBlockTool(),
+        RateLimiterTool(),
+        FirewallBlockerTool(),
+        CDNActivatorTool()
+    ]
 
-    # Tool 2: Enforce adaptive rate limiting
-    rate_limiter = RateLimiterTool()
-    results["rate_limiting"] = rate_limiter.run(data)
+    for tool in tool_chain:
+        tool_name = tool.__class__.__name__
+        try:
+            output = tool.run(context)
+            context.update({tool_name: output})
+            results[tool_name] = output
+        except Exception as e:
+            results[tool_name] = {
+                "error": str(e),
+                "status": "failed"
+            }
 
-    # Tool 3: Block requests from malicious geolocations
-    geo_block = GeoBlockTool()
-    results["geo_blocking"] = geo_block.run(data)
+    results["meta"] = {
+        "threat_type": "DDoS",
+        "status": "completed",
+        "tools_executed": [tool.__class__.__name__ for tool in tool_chain]
+    }
 
-    # Tool 4: Enable firewall rules to block abnormal traffic
-    firewall = FirewallBlockerTool()
-    results["firewall_blocking"] = firewall.run(data)
-
-    # Tool 5: Enable network monitoring for continued observation
-    monitor = MonitorTool()
-    results["monitoring"] = monitor.run(data)
-
-    # Tool 6: Raise an alert to admins
-    alert = AlertTool()
-    results["alerting"] = alert.run(data)
-
-    # Tool 7: Log everything
-    logger = LogTool()
-    results["logging"] = logger.run({
-        "threat_type": "ddos",
-        "details": results
-    })
-
-    state.result = results
-    return state
+    return results

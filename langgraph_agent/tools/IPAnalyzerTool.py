@@ -1,68 +1,70 @@
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
 from tools.tool_interface import ToolInterface
 
 
 class IPAnalyzerTool(ToolInterface):
     """
-    Analyzes incoming log data to detect IPs exhibiting high request frequency
-    within a defined time window.
+    Identifies IPs that may be involved in DDoS attacks by analyzing connection behavior.
+    Flags IPs with:
+    - High number of connections
+    - Suspicious connection states
+    - Low average connection duration
+    - Low average payload size
     """
 
-    def __init__(self, threshold_per_minute=10, time_window_minutes=1, time_field="timestamp", ip_field="src_ip"):
-        """
-        :param threshold_per_minute: Request threshold per IP per time window.
-        :param time_window_minutes: Time window in minutes for sliding analysis.
-        :param time_field: Field in log representing ISO 8601 timestamp.
-        :param ip_field: Field in log representing source IP address.
-        """
-        self.threshold = threshold_per_minute
-        self.window = timedelta(minutes=time_window_minutes)
-        self.time_field = time_field
-        self.ip_field = ip_field
+    def __init__(
+        self,
+        min_connection_count: int = 3,
+        max_avg_duration: float = 2.0,
+        max_avg_payload: int = 300,
+        suspicious_conn_states: list = None
+    ):
+        self.min_connection_count = min_connection_count
+        self.max_avg_duration = max_avg_duration
+        self.max_avg_payload = max_avg_payload
+        self.suspicious_conn_states = suspicious_conn_states or ["S0", "S1", "REJ"]
 
     def run(self, context: dict) -> dict:
         logs = context.get("logs", [])
-        now = datetime.now(timezone.utc)
-        ip_activity = defaultdict(list)
+        ip_stats = defaultdict(lambda: {"count": 0, "duration_sum": 0.0, "payload_sum": 0, "conn_state_match": 0})
 
         for entry in logs:
-            try:
-                timestamp = self._parse_timestamp(entry.get(self.time_field))
-                if not timestamp or (now - timestamp > self.window):
-                    continue
+            ip = entry.get("src_ip")
+            conn_state = entry.get("conn_state", "")
+            duration = float(entry.get("duration", 0.0))
+            payload = int(entry.get("payload_bytes", 0))
 
-                ip = entry.get(self.ip_field)
-                if ip:
-                    ip_activity[ip].append(timestamp)
-            except Exception:
-                continue
+            ip_stats[ip]["count"] += 1
+            ip_stats[ip]["duration_sum"] += duration
+            ip_stats[ip]["payload_sum"] += payload
 
-        flagged_ips = []
-        for ip, times in ip_activity.items():
-            if len(times) > self.threshold:
-                flagged_ips.append({
+            if conn_state in self.suspicious_conn_states:
+                ip_stats[ip]["conn_state_match"] += 1
+
+        suspicious_ips = {}
+
+        for ip, stats in ip_stats.items():
+            count = stats["count"]
+            avg_duration = stats["duration_sum"] / count
+            avg_payload = stats["payload_sum"] / count
+            conn_state_hits = stats["conn_state_match"]
+
+            if (
+                count >= self.min_connection_count
+                and conn_state_hits > 0
+                and avg_duration <= self.max_avg_duration
+                and avg_payload <= self.max_avg_payload
+            ):
+                suspicious_ips[ip] = {
                     "ip": ip,
-                    "request_count": len(times),
-                    "window_minutes": self.window.total_seconds() / 60,
-                    "reason": f"Exceeded threshold ({len(times)}/{self.threshold} req/min)"
-                })
+                    "connection_count": count,
+                    "avg_payload": round(avg_payload, 2),
+                    "avg_duration": round(avg_duration, 2)
+                }
 
         return {
-            "IPAnalyzerTool": flagged_ips,
+            "IPAnalyzerTool": list(suspicious_ips.values()),
             "meta": {
-                "threshold_per_minute": self.threshold,
-                "window_minutes": self.window.total_seconds() / 60,
-                "total_unique_ips": len(ip_activity),
-                "flagged_count": len(flagged_ips)
+                "flagged_count": len(suspicious_ips)
             }
         }
-
-    @staticmethod
-    def _parse_timestamp(ts: str) -> datetime | None:
-        try:
-            if ts.endswith("Z"):
-                ts = ts.replace("Z", "+00:00")
-            return datetime.fromisoformat(ts)
-        except Exception:
-            return None

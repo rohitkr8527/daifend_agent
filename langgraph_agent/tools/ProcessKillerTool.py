@@ -1,21 +1,21 @@
-# Placeholder for tools/ProcessKillerTool.py
-from tools.tool_interface import ToolInterface
+from typing import Dict, List
+from datetime import datetime
 
-class ProcessKillerTool(ToolInterface):
+
+class ProcessKillerTool:
     """
-    Kills encryption processes based on signature match (mocked process detection).
+    Simulates killing ransomware-related processes.
     """
+    def run(self, context: Dict) -> Dict:
+        suspicious_procs: List[Dict] = context.get("suspicious_processes", [])
+        killed = [
+            proc for proc in suspicious_procs
+            if proc.get("entropy", 0) > 7.5 or "encrypt" in proc.get("name", "").lower()
+        ]
 
-    def run(self, context: dict) -> dict:
-        logs = context.get("logs", [])
-        killed = []
-
-        for entry in logs:
-            if entry.get("attack_type") == "Ransomware" and entry.get("yara_rule_match"):
-                killed.append({
-                    "device_id": entry.get("device_id"),
-                    "process_signature": entry.get("yara_rule_match"),
-                    "action": "Terminated suspected encryption script"
-                })
-
-        return {"ProcessKillerTool": killed}
+        return {
+            "ProcessKillerTool": {
+                "killed_processes": killed,
+                "timestamp": datetime.now(datetime.timezone.utc).isoformat()
+            }
+        }

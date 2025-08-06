@@ -1,53 +1,31 @@
-import subprocess
-import platform
-from tools.tool_interface import ToolInterface
+from typing import List, Dict, Set
 
-class FirewallBlockerTool(ToolInterface):
+
+class FirewallBlockerTool:
     """
-    Blocks high-risk IPs at the OS-level firewall, skipping those already throttled.
+    Blocks confirmed malicious IPs based on outputs from GeoBlockTool and IPAnalyzerTool.
     """
 
-    def __init__(self):
-        self.system = platform.system()
+    def run(self, context: Dict) -> Dict:
+        geo_result = context.get("GeoBlockTool", {})
+        analyzer_result = context.get("IPAnalyzerTool", {})
 
-    def block_ip(self, ip):
-        try:
-            if self.system == "Windows":
-                # Block inbound traffic from IP
-                cmd = ["netsh", "advfirewall", "firewall", "add", "rule",
-                       "name=Block_IP_" + ip,
-                       "dir=in", "action=block", f"remoteip={ip}"]
-            elif self.system == "Linux":
-                # Block with iptables (requires sudo)
-                cmd = ["sudo", "iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"]
-            else:
-                return False, f"Unsupported OS: {self.system}"
+        # Extract flagged IPs from each tool
+        geo_flagged = geo_result.get("flagged_ips", [])
+        analyzer_flagged = analyzer_result.get("IPAnalyzerTool", [])
 
-            subprocess.run(cmd, check=True)
-            return True, f"Blocked IP {ip} on {self.system}"
-        except subprocess.CalledProcessError as e:
-            return False, f"Failed to block IP {ip}: {e}"
+        # Extract IPs from each list
+        geo_ips = {entry["ip"] for entry in geo_flagged if "ip" in entry}
+        analyzer_ips = {entry["ip"] for entry in analyzer_flagged if "ip" in entry}
 
-    def run(self, context: dict) -> dict:
-        logs = context.get("logs", [])
-        throttled_ips = set()
-        rate_limit_data = context.get("RateLimiterTool", [])
-        for rec in rate_limit_data:
-            throttled_ips.add(rec["ip"])
+        # Union of all unique IPs
+        all_malicious_ips = geo_ips.union(analyzer_ips)
 
-        suspicious_ips = context.get("IPAnalyzerTool", {}).get("suspicious_ips", [])
-        blocked = []
+        blocked_entries = [{"ip": ip, "status": "Blocked at perimeter firewall"} for ip in sorted(all_malicious_ips)]
 
-        for ip in suspicious_ips:
-            if ip in throttled_ips:
-                continue  # Skip IPs already handled by rate limiting
-
-            success, message = self.block_ip(ip)
-            blocked.append({
-                "ip": ip,
-                "action": "Blocked via firewall",
-                "status": "Success" if success else "Failed",
-                "message": message
-            })
-
-        return {"FirewallBlockerTool": blocked}
+        return {
+            "FirewallBlockerTool": blocked_entries,
+            "meta": {
+                "blocked_count": len(blocked_entries)
+            }
+        }
