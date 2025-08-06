@@ -1,6 +1,9 @@
+# toolchains/ransomware_chain.py
+
+from tools.ProcessKillerTool import ProcessKillerTool
 from tools.HostIsolationTool import HostIsolationTool
 from tools.SnapShotRecoveryTool import SnapshotRecoveryTool
-from tools.ProcessKillerTool import ProcessKillerTool
+from tools.TemporaryFirewallTool import TemporaryFirewallTool
 
 def execute(context: dict) -> dict:
     """
@@ -8,9 +11,10 @@ def execute(context: dict) -> dict:
     """
     results = {}
     tool_chain = [
+        ProcessKillerTool(),
         HostIsolationTool(),
-        ProcessKillerTool(),          
-        SnapshotRecoveryTool()
+        SnapshotRecoveryTool(),
+        TemporaryFirewallTool()
     ]
 
     for tool in tool_chain:

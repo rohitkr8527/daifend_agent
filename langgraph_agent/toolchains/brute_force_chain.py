@@ -1,50 +1,49 @@
-# brute_force_chain.py
+# toolchains/brute_force_chain.py
 
-from tools.LoginAttemptMonitorTool import LoginAttemptMonitorTool
-from tools.AuthLockTool import AuthLockTool
-from tools.WAFTool import WAFTool
-from tools.ProcessKillerTool import ProcessKillerTool
-from tools.AlertTool import AlertTool
-from tools.LogTool import LogTool
+from tools.FailedLoginMonitorTool import FailedLoginMonitorTool
+from tools.IPBlackListTool import IPBlacklistTool
+from tools.AuthLockTool import AccountLockTool
+from tools.RateLimiterTool import RateLimiterTool
 
 
-def handle_brute_force_threat(state):
+def execute(context: dict) -> dict:
     """
-    Executes the brute-force attack response toolchain using modular tools.
-    Args:
-        state (AgentState): LangGraph state with threat details
-    Returns:
-        AgentState: Updated state with results
+    Executes the brute-force mitigation toolchain.
+    Applies multiple layered defenses against credential-stuffing and login-based attacks.
     """
-    data = state.data
     results = {}
 
-    # Tool 1: Monitor failed login attempts
-    login_monitor = LoginAttemptMonitorTool()
-    results["login_monitoring"] = login_monitor.run(data)
+    # Set mode for RateLimiterTool
+    context["limit_type"] = "brute_force"
 
-    # Tool 2: Lock user accounts temporarily
-    auth_locker = AuthLockTool()
-    results["auth_lock"] = auth_locker.run(data)
+    # Define tool sequence
+    tool_chain = [
+        FailedLoginMonitorTool(),
+        IPBlacklistTool(),
+        AccountLockTool(),
+        RateLimiterTool()
+    ]
 
-    # Tool 3: Block attacker via WAF rules
-    waf_blocker = WAFTool()
-    results["waf_blocking"] = waf_blocker.run(data)
+    for tool in tool_chain:
+        tool_name = tool.__class__.__name__
 
-    # Tool 4: Kill suspicious login brute-force process
-    process_killer = ProcessKillerTool()
-    results["process_killing"] = process_killer.run(data)
+        try:
+            output = tool.run(context)
+            context[tool_name] = output  # Save tool output into context
+            results[tool_name] = {
+                "status": "success",
+                "output": output
+            }
+        except Exception as e:
+            results[tool_name] = {
+                "status": "failed",
+                "error": str(e)
+            }
 
-    # Tool 5: Trigger alert
-    alert = AlertTool()
-    results["alerting"] = alert.run(data)
-
-    # Tool 6: Log the response
-    logger = LogTool()
-    results["logging"] = logger.run({
+    results["meta"] = {
         "threat_type": "brute_force",
-        "details": results
-    })
+        "status": "completed",
+        "tools_executed": [tool.__class__.__name__ for tool in tool_chain]
+    }
 
-    state.result = results
-    return state
+    return results

@@ -79,26 +79,101 @@
 ##---------sql_injection_chain.py--------##
 # test_sqlin_chain.py
 
-from toolchains import sql_injection_chain
+# from toolchains import sql_injection_chain
 
-def get_mock_context():
-    return {
-        "logs": [
-            {"ip": "192.168.1.100", "path": "/login", "payload": "username=admin&password=' OR '1'='1"},
-            {"ip": "192.168.1.101", "path": "/submit", "payload": "data=xyz"},
-            {"ip": "192.168.1.102", "path": "/submit", "payload": "data=xyz&csrf_token=abc123"},
-            {"ip": "192.168.1.103", "path": "/update", "payload": "drop table users;"},
-        ],
-        "threat_type": "sqlin"
-    }
+# def get_mock_context():
+#     return {
+#         "logs": [
+#             {"ip": "192.168.1.100", "path": "/login", "payload": "username=admin&password=' OR '1'='1"},
+#             {"ip": "192.168.1.101", "path": "/submit", "payload": "data=xyz"},
+#             {"ip": "192.168.1.102", "path": "/submit", "payload": "data=xyz&csrf_token=abc123"},
+#             {"ip": "192.168.1.103", "path": "/update", "payload": "drop table users;"},
+#         ],
+#         "threat_type": "sqlin"
+#     }
+
+# def main():
+#     context = get_mock_context()
+#     result = sql_injection_chain.execute(context)
+
+#     print("=== SQLi/CSRF Chain Execution Result ===")
+#     for tool, output in result.items():
+#         print(f"\n[{tool}]:\n{output}")
+
+# if __name__ == "__main__":
+#     main()
+
+##---------brute_force_chain.py--------##
+# test_brute_force_chain.py
+
+import json
+from datetime import datetime, timedelta, timezone
+
+from toolchains.brute_force_chain import execute
+
+
+def generate_test_logs():
+    """
+    Generate sample log entries to simulate brute force behavior.
+    """
+    now = datetime.now(timezone.utc)
+    logs = []
+
+    # IP with repeated failed login attempts (should be flagged)
+    for i in range(7):
+        logs.append({
+            "timestamp": (now - timedelta(seconds=i * 60)).isoformat(),
+            "src_ip": "192.168.1.101",
+            "event_type": "login_attempt",
+            "status": "failed",
+            "user_id": "user_alpha",
+            "username": "user_alpha",
+            "success": False
+        })
+
+    # Another user with fewer failures (should not be locked)
+    for i in range(2):
+        logs.append({
+            "timestamp": (now - timedelta(seconds=i * 120)).isoformat(),
+            "src_ip": "192.168.1.202",
+            "event_type": "login_attempt",
+            "status": "failed",
+            "user_id": "user_beta",
+            "username": "user_beta",
+            "success": False
+        })
+
+    # Successful login attempt (should be ignored)
+    logs.append({
+        "timestamp": now.isoformat(),
+        "src_ip": "192.168.1.150",
+        "event_type": "login_attempt",
+        "status": "success",
+        "user_id": "user_alpha",
+        "username": "user_alpha",
+        "success": True
+    })
+
+    return logs
+
 
 def main():
-    context = get_mock_context()
-    result = sql_injection_chain.execute(context)
+    # Simulate Layer 3 input
+    context = {
+        "logs": generate_test_logs(),
+        "attack_type": "brute_force",
+        "alert": True,
+        "alert_message": "Brute force attempt detected",
+        "severity_level": "Medium",
+        "confidence_score": 88.5
+    }
 
-    print("=== SQLi/CSRF Chain Execution Result ===")
-    for tool, output in result.items():
-        print(f"\n[{tool}]:\n{output}")
+    # Run brute force toolchain
+    result = execute(context)
+
+    # Print summary output
+    print(json.dumps(result, indent=4))
+
 
 if __name__ == "__main__":
     main()
