@@ -31,7 +31,7 @@ def execute(context: dict) -> dict:
 
     return results
 
-# === LangGraph-compatible wrapper node ===
+
 
 def sqlin_node(state: dict) -> dict:
     """

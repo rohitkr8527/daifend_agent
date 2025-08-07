@@ -8,7 +8,7 @@ from tools.CDNActivator import CDNActivatorTool
 def ddos_node(state: dict) -> dict:
     """
     LangGraph node to handle DDoS threats using layered tools.
-    Accepts incoming context, applies defense tools, and updates state.
+    Accepts shared state, applies tools, updates state in-place.
     """
     results = {}
 
@@ -22,10 +22,9 @@ def ddos_node(state: dict) -> dict:
 
     for tool in tool_chain:
         tool_name = tool.__class__.__name__
-
         try:
             output = tool.run(state)
-            state[tool_name] = output  # Save to shared context
+            state[tool_name] = output
             results[tool_name] = {
                 "status": "success",
                 "output": output
@@ -36,7 +35,6 @@ def ddos_node(state: dict) -> dict:
                 "error": str(e)
             }
 
-    # Add result metadata
     state["ddos_response"] = {
         "tools_executed": [tool.__class__.__name__ for tool in tool_chain],
         "status": "completed",

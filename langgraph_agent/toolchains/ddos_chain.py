@@ -11,7 +11,7 @@ def execute(context: dict) -> dict:
     Updates the context with tool outputs and returns final result.
     """
     results = {}
-
+    
     tool_chain = [
         IPAnalyzerTool(),
         GeoBlockTool(),
@@ -24,12 +24,15 @@ def execute(context: dict) -> dict:
         tool_name = tool.__class__.__name__
         try:
             output = tool.run(context)
-            context.update({tool_name: output})
-            results[tool_name] = output
+            context[tool_name] = output  # Update global context
+            results[tool_name] = {
+                "status": "success",
+                "output": output
+            }
         except Exception as e:
             results[tool_name] = {
-                "error": str(e),
-                "status": "failed"
+                "status": "failed",
+                "error": str(e)
             }
 
     results["meta"] = {
