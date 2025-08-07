@@ -1,18 +1,30 @@
-def router_node(state: dict) -> str:
-    """
-    Routes the threat to the correct node based on 'threat_type' in the state.
+from typing import Annotated, TypedDict, Optional, Union
 
-    Returns the name of the next node.
-    """
-    threat_type = state.get("threat_type", "").lower()
+class AgentState(TypedDict, total=False):
+    threat_type: Optional[str]       # e.g., "ddos", "brute_force", etc.
+    anomaly_score: Optional[float]   # used to route unknown threats
+    data: dict                       # the actual threat data payload
+    result: dict                     # the output from the node
 
-    if threat_type == "ddos":
-        return "ddos_response"
-    elif threat_type == "brute_force":
-        return "brute_force_response"
-    elif threat_type == "sqlin":
-        return "sqlin_response"
-    elif threat_type == "ransomware":
-        return "ransomware_response"
-    else:
-        return "unknown_threat_handler"
+def route_to_node(state: AgentState) -> dict:
+    """
+    Routes input state to the correct node based on the threat_type or anomaly_score.
+    Returns a dict with key 'next' as required by LangGraph conditional routing.
+    """
+    threat_type = state.get("threat_type")
+    anomaly_score = state.get("anomaly_score", 0)
+
+    if anomaly_score > 0.85:
+        return {"next": "unknown_threat_node"}
+
+    match threat_type:
+        case "ddos":
+            return {"next": "ddos_node"}
+        case "brute_force":
+            return {"next": "brute_force_node"}
+        case "ransomware":
+            return {"next": "ransomware_node"}
+        case "sql_injection" | "sqlin":
+            return {"next": "sql_injection_node"}
+        case _:
+            return {"next": "unknown_threat_node"}

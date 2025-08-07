@@ -19,7 +19,6 @@ def sqlin_node(state: dict) -> dict:
 
         try:
             output = tool.run(state)
-            state[tool_name] = output
             results[tool_name] = {
                 "status": "success",
                 "output": output
@@ -30,11 +29,11 @@ def sqlin_node(state: dict) -> dict:
                 "error": str(e)
             }
 
-    state["sqlin_response"] = {
-        "tools_executed": [tool.__class__.__name__ for tool in tool_chain],
-        "status": "completed",
-        "threat_type": "sqlin",
-        "results": results
+    return {
+        "sqlin_response": {
+            "tools_executed": [tool.__class__.__name__ for tool in tool_chain],
+            "status": "completed",
+            "threat_type": "sqlin",
+            "results": results
+        }
     }
-
-    return state

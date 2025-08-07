@@ -30,3 +30,14 @@ def execute(context: dict) -> dict:
     }
 
     return results
+
+# === LangGraph-compatible wrapper node ===
+
+def sqlin_node(state: dict) -> dict:
+    """
+    LangGraph node that uses the SQL Injection toolchain.
+    Wraps the execute() logic for use in graph.
+    """
+    output = execute(state)
+    state["result"] = output
+    return state
